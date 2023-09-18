@@ -125,6 +125,12 @@ public:
                                 toBase16<uint32_t>(num, value);
                                 copyFromString(num);
                             }
+                        } else if constexpr (std::is_same_v<T, float>) {
+                            if (spec == 'a') {
+                                char num[64];
+                                toBinaryScientific(num, value);
+                                copyFromString(num);
+                            }
                         } else if constexpr (std::is_same_v<T, const char*> ||
                                              std::is_same_v<T, char*>) {
                             if (spec == 's') {
@@ -162,7 +168,7 @@ public:
 private:
     static void reverse(char* buf, std::size_t length) noexcept {
         for (std::size_t i = 0, j = length - 1; i < j; ++i, --j) {
-            char tmp = buf[i];
+            const char tmp = buf[i];
             buf[i] = buf[j];
             buf[j] = tmp;
         }
@@ -171,50 +177,109 @@ private:
     template <typename T>
     static void toBase2(char* buf, T value) noexcept {
         static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-        std::size_t i = 0;
+        std::size_t len = 0;
         do {
-            buf[i++] = static_cast<char>(value & 1) + '0';
+            buf[len++] = static_cast<char>(value & 1) + '0';
             value >>= 1;
         } while (value != 0);
-        reverse(buf, i);
-        buf[i] = '\0';
+        reverse(buf, len);
+        buf[len] = '\0';
     }
 
     template <typename T>
     static void toBase10(char* buf, T value) noexcept {
         static_assert(std::is_integral_v<T>);
-        std::size_t i = 0;
-        auto reduce = [&buf, &i](std::make_unsigned_t<T> num) -> void {
+        std::size_t len = 0;
+        auto reduce = [&buf, &len](std::make_unsigned_t<T> num) -> void {
             do {
-                buf[i++] = static_cast<char>(num % 10) + '0';
+                buf[len++] = static_cast<char>(num % 10) + '0';
                 num /= 10;
             } while (num != 0);
         };
         if constexpr (std::is_signed_v<T>) {
-            T mask = value >> (sizeof(value) * 8 - 1);
+            const T mask = value >> (sizeof(value) * 8 - 1);
             reduce((value + mask) ^ mask);
-            buf[i] = '-';
-            i += static_cast<std::size_t>(mask & 1);
+            buf[len] = '-';
+            len += static_cast<std::size_t>(mask & 1);
         } else if constexpr (std::is_unsigned_v<T>) {
             reduce(value);
         } else {
             static_assert(std::is_same_v<T, void>);
         }
-        reverse(buf, i);
-        buf[i] = '\0';
+        reverse(buf, len);
+        buf[len] = '\0';
     }
 
     template <typename T>
     static void toBase16(char* buf, T value) noexcept {
         static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
         const char kCharMap[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-        std::size_t i = 0;
+        std::size_t len = 0;
         do {
-            buf[i++] = kCharMap[value & 15];
+            buf[len++] = kCharMap[value & 15];
             value >>= 4;
         } while (value != 0);
-        reverse(buf, i);
-        buf[i] = '\0';
+        reverse(buf, len);
+        buf[len] = '\0';
+    }
+
+    static void toBinaryScientific(char* buf, float number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<unsigned char*>(&number);
+        const bool sign_bit = (bytes[3] & 0x80) != 0;
+        const uint32_t expo = ((bytes[3] & 0x7ful) << 1) | ((bytes[2] & 0x80ul) >> 7);
+        const uint32_t frac = (((bytes[2] & 0x7ful) << 16) | ((bytes[1] & 0xfful) << 8) | ((bytes[0] & 0xfful) << 0)) << 1;
+        std::size_t len = 0;
+        auto copyFromString = [&buf, &len](const char* str) noexcept -> void {
+            do {
+                buf[len++] = *str++;
+            } while (*str != '\0');
+        };
+        auto copyBase16 = [&buf, &len](uint32_t value) noexcept -> void {
+            const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+            const std::size_t off = len;
+            do {
+                buf[len++] = kCharMap[value & 15];
+                value >>= 4;
+            } while (value != 0);
+            reverse(&buf[off], len - off);
+        };
+        auto copyBase10 = [&buf, &len](int32_t value) noexcept -> void {
+            const std::size_t off = len;
+            const int32_t mask = value >> (sizeof(value) * 8 - 1);
+            value = (value + mask) ^ mask;
+            do {
+                buf[len++] = static_cast<char>(value % 10) + '0';
+                value /= 10;
+            } while (value != 0);
+            buf[len] = '-';
+            len += static_cast<std::size_t>(mask & 1);
+            reverse(&buf[off], len - off);
+        };
+        auto removeZeros = [](uint32_t frac) noexcept -> uint32_t {
+            while ((frac & 15) == 0) {
+                frac >>= 4;
+            };
+            return frac;
+        };
+        if (expo == 0) {
+            if (frac == 0) {
+                copyFromString(sign_bit ? "-0x0p+0" : "0x0p+0");
+            } else {
+                copyFromString(sign_bit ? "-0x0." : "0x0.");
+                copyBase16(frac);
+                copyFromString("p-126");
+            }
+        } else {
+            if (frac == 0) {
+                copyFromString(sign_bit ? "-0x1" : "0x1");
+            } else {
+                copyFromString(sign_bit ? "-0x1." : "0x1.");
+                copyBase16(removeZeros(frac));
+            }
+            copyFromString(expo < 127 ? "p" : "p+");
+            copyBase10(static_cast<int32_t>(expo) - 127);
+        }
+        buf[len] = '\0';
     }
 };
 
