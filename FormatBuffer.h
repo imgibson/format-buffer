@@ -127,7 +127,7 @@ public:
                             }
                         } else if constexpr (std::is_same_v<T, float>) {
                             if (spec == 'a') {
-                                char num[64];
+                                char num[24];
                                 toBinaryScientific(num, value);
                                 copyFromString(num);
                             }
@@ -213,7 +213,7 @@ private:
     template <typename T>
     static void toBase16(char* buf, T value) noexcept {
         static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-        const char kCharMap[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+        const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
         std::size_t len = 0;
         do {
             buf[len++] = kCharMap[value & 15];
@@ -225,9 +225,9 @@ private:
 
     static void toBinaryScientific(char* buf, float number) noexcept {
         const unsigned char* bytes = reinterpret_cast<unsigned char*>(&number);
-        const bool sign_bit = (bytes[3] & 0x80) != 0;
-        const uint32_t expo = ((bytes[3] & 0x7ful) << 1) | ((bytes[2] & 0x80ul) >> 7);
-        const uint32_t frac = (((bytes[2] & 0x7ful) << 16) | ((bytes[1] & 0xfful) << 8) | ((bytes[0] & 0xfful) << 0)) << 1;
+        const uint32_t sign = 1ul - ((bytes[3] & 0x80ul) >> 7);
+        const uint32_t expo = (bytes[2] & 0x80ul) >> 7 | (bytes[3] & 0x7ful) << 1;
+        const uint32_t frac = (bytes[0] & 0xfful) << 1 | (bytes[1] & 0xfful) << 9 | (bytes[2] & 0x7ful) << 17;
         std::size_t len = 0;
         auto copyFromString = [&buf, &len](const char* str) noexcept -> void {
             do {
@@ -263,23 +263,23 @@ private:
         };
         if (expo == 0) {
             if (frac == 0) {
-                copyFromString(sign_bit ? "-0x0p+0" : "0x0p+0");
+                copyFromString("-0x0p+0" + sign);
             } else {
-                copyFromString(sign_bit ? "-0x0." : "0x0.");
+                copyFromString("-0x0." + sign);
                 copyBase16(frac);
                 copyFromString("p-126");
             }
         } else if (expo == 255) {
             if (frac == 0) {
-                copyFromString(sign_bit ? "-inf" : "inf");
+                copyFromString("-inf" + sign);
             } else {
-                copyFromString(sign_bit ? "-nan" : "nan");
+                copyFromString("-nan" + sign);
             }
         } else {
             if (frac == 0) {
-                copyFromString(sign_bit ? "-0x1" : "0x1");
+                copyFromString("-0x1" + sign);
             } else {
-                copyFromString(sign_bit ? "-0x1." : "0x1.");
+                copyFromString("-0x1." + sign);
                 copyBase16(removeZeros(frac));
             }
             copyFromString(expo < 127 ? "p" : "p+");
