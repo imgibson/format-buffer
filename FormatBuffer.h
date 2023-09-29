@@ -269,6 +269,12 @@ private:
                 copyBase16(frac);
                 copyFromString("p-126");
             }
+        } else if (expo == 255) {
+            if (frac == 0) {
+                copyFromString(sign_bit ? "-inf" : "inf");
+            } else {
+                copyFromString(sign_bit ? "-nan" : "nan");
+            }
         } else {
             if (frac == 0) {
                 copyFromString(sign_bit ? "-0x1" : "0x1");
