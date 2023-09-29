@@ -243,16 +243,12 @@ private:
             } while (value != 0);
             reverse(&buf[off], len - off);
         };
-        auto copyBase10 = [&buf, &len](int32_t value) noexcept -> void {
+        auto copyBase10 = [&buf, &len](uint32_t value) noexcept -> void {
             const std::size_t off = len;
-            const int32_t mask = value >> (sizeof(value) * 8 - 1);
-            value = (value + mask) ^ mask;
             do {
                 buf[len++] = static_cast<char>(value % 10) + '0';
                 value /= 10;
             } while (value != 0);
-            buf[len] = '-';
-            len += static_cast<std::size_t>(mask & 1);
             reverse(&buf[off], len - off);
         };
         auto removeZeros = [](uint32_t frac) noexcept -> uint32_t {
@@ -282,8 +278,13 @@ private:
                 copyFromString("-0x1." + sign);
                 copyBase16(removeZeros(frac));
             }
-            copyFromString(expo < 127 ? "p" : "p+");
-            copyBase10(static_cast<int32_t>(expo) - 127);
+            if (expo < 127) {
+                copyFromString("p-");
+                copyBase10(127 - expo);
+            } else {
+                copyFromString("p+");
+                copyBase10(expo - 127);
+            }
         }
         buf[len] = '\0';
     }
