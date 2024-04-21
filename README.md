@@ -4,7 +4,7 @@ Format Buffer is a very lightweight header only library to write a format string
 
 ## Usage
 
-A format specifier follows this prototype: '%specifier'
+A format specifier follows this prototype: '%[flags][width]specifier'
 
 | Specifier | Description                                              |
 | --------- | -------------------------------------------------------- |
@@ -16,6 +16,14 @@ A format specifier follows this prototype: '%specifier'
 | s         | String of Characters (null-terminated)                   |
 | a         | Floating Point in Hexadecimal Binary Scientific Notation |
 | %         | The '%' Character                                        |
+
+| Flags | Description                                               |
+| ----- | --------------------------------------------------------- |
+| 0     | Changes the default padding character from space to zero. |
+
+| Width    | Description                                     |
+| -------- | ----------------------------------------------- |
+| (number) | The minimum number of characters to be printed. |
 
 ## Examples
 

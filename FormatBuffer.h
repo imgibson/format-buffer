@@ -41,17 +41,27 @@ public:
     template <std::size_t N, typename... Types>
     static void print(char (&buf)[N], const char* fmt, Types... args) noexcept {
         static_assert(N > 0);
+        char fill = ' ';
         std::size_t i = 0;
+        std::size_t width = 0;
         auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
             do {
                 buf[i++] = *str++;
             } while (*str != '\0' && i < (N - 1));
         };
-        auto copyFromFormat = [&buf, &fmt, &i]() noexcept -> bool {
+        auto copyFromFormat = [&buf, &fmt, &i, &fill, &width]() noexcept -> bool {
             do {
                 if (*fmt == '%') {
-                    ++fmt;
-                    if (*fmt != '%') {
+                    if (*++fmt != '%') {
+                        fill = *fmt == '0' ? *fmt++ : ' ';
+                        if (*fmt >= '1' && *fmt <= '9') {
+                            width = static_cast<std::size_t>(*fmt++ - '0');
+                            while (*fmt >= '0' && *fmt <= '9') {
+                                width = width * 10 + static_cast<std::size_t>(*fmt++ - '0');
+                            }
+                        } else {
+                            width = 0;
+                        }
                         return true;
                     }
                 }
@@ -59,7 +69,7 @@ public:
             } while (*fmt != '\0' && i < (N - 1));
             return false;
         };
-        if (*fmt != '\0') {
+        if (*fmt != '\0' && i < (N - 1)) {
             bool foundSpec = copyFromFormat();
             (
                 [&]<typename T>(T value) noexcept -> void {
@@ -67,62 +77,62 @@ public:
                         char spec = *fmt++;
                         if constexpr (std::is_same_v<T, int64_t>) {
                             if (spec == 'b') {
-                                char num[66];
-                                toBase2<uint64_t>(num, value);
+                                char num[128];
+                                toBase2<uint64_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'd') {
-                                char num[22];
-                                toBase10<int64_t>(num, value);
+                                char num[128];
+                                toBase10<int64_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'x') {
-                                char num[18];
-                                toBase16<uint64_t>(num, value);
+                                char num[128];
+                                toBase16<uint64_t>(num, value, fill, width);
                                 copyFromString(num);
                             }
                         } else if constexpr (std::is_same_v<T, int32_t> ||
                                              std::is_same_v<T, int16_t> ||
                                              std::is_same_v<T, int8_t>) {
                             if (spec == 'b') {
-                                char num[34];
-                                toBase2<uint32_t>(num, static_cast<std::make_unsigned_t<T>>(value));
+                                char num[128];
+                                toBase2<uint32_t>(num, static_cast<std::make_unsigned_t<T>>(value), fill, width);
                                 copyFromString(num);
                             } else if (spec == 'd') {
-                                char num[16];
-                                toBase10<int32_t>(num, value);
+                                char num[128];
+                                toBase10<int32_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'x') {
-                                char num[10];
-                                toBase16<uint32_t>(num, static_cast<std::make_unsigned_t<T>>(value));
+                                char num[128];
+                                toBase16<uint32_t>(num, static_cast<std::make_unsigned_t<T>>(value), fill, width);
                                 copyFromString(num);
                             }
                         } else if constexpr (std::is_same_v<T, uint64_t>) {
                             if (spec == 'b') {
-                                char num[66];
-                                toBase2<uint64_t>(num, value);
+                                char num[128];
+                                toBase2<uint64_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'u') {
-                                char num[22];
-                                toBase10<uint64_t>(num, value);
+                                char num[128];
+                                toBase10<uint64_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'x') {
-                                char num[18];
-                                toBase16<uint64_t>(num, value);
+                                char num[128];
+                                toBase16<uint64_t>(num, value, fill, width);
                                 copyFromString(num);
                             } 
                         } else if constexpr (std::is_same_v<T, uint32_t> ||
                                              std::is_same_v<T, uint16_t> ||
                                              std::is_same_v<T, uint8_t>) {
                             if (spec == 'b') {
-                                char num[34];
-                                toBase2<uint32_t>(num, value);
+                                char num[128];
+                                toBase2<uint32_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'u') {
-                                char num[16];
-                                toBase10<uint32_t>(num, value);
+                                char num[128];
+                                toBase10<uint32_t>(num, value, fill, width);
                                 copyFromString(num);
                             } else if (spec == 'x') {
-                                char num[10];
-                                toBase16<uint32_t>(num, value);
+                                char num[128];
+                                toBase16<uint32_t>(num, value, fill, width);
                                 copyFromString(num);
                             }
                         } else if constexpr (std::is_same_v<T, float>) {
@@ -174,20 +184,31 @@ private:
         }
     }
 
-    template <typename T>
-    static void toBase2(char* buf, T value) noexcept {
+    template <typename T, std::size_t N>
+    static void toBase2(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept {
+        static_assert(N > 64);
         static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
         std::size_t len = 0;
         do {
             buf[len++] = static_cast<char>(value & 1) + '0';
             value >>= 1;
         } while (value != 0);
+        if (width > N - 1) {
+            width = N - 1;
+        }
+        if (width > len) {
+            std::size_t count = width - len;
+            do {
+                buf[len++] = fill;
+            } while (--count > 0);
+        }
         reverse(buf, len);
         buf[len] = '\0';
     }
 
-    template <typename T>
-    static void toBase10(char* buf, T value) noexcept {
+    template <typename T, std::size_t N>
+    static void toBase10(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept {
+        static_assert(N > 20);
         static_assert(std::is_integral_v<T>);
         std::size_t len = 0;
         auto reduce = [&buf, &len](std::make_unsigned_t<T> num) -> void {
@@ -206,12 +227,22 @@ private:
         } else {
             static_assert(std::is_same_v<T, void>);
         }
+        if (width > N - 1) {
+            width = N - 1;
+        }
+        if (width > len) {
+            std::size_t count = width - len;
+            do {
+                buf[len++] = fill;
+            } while (--count > 0);
+        }
         reverse(buf, len);
         buf[len] = '\0';
     }
 
-    template <typename T>
-    static void toBase16(char* buf, T value) noexcept {
+    template <typename T, std::size_t N>
+    static void toBase16(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept {
+        static_assert(N > 16);
         static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
         const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
         std::size_t len = 0;
@@ -219,6 +250,15 @@ private:
             buf[len++] = kCharMap[value & 15];
             value >>= 4;
         } while (value != 0);
+        if (width > N - 1) {
+            width = N - 1;
+        }
+        if (width > len) {
+            std::size_t count = width - len;
+            do {
+                buf[len++] = fill;
+            } while (--count > 0);
+        }
         reverse(buf, len);
         buf[len] = '\0';
     }
