@@ -47,7 +47,7 @@ public:
         const auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
             do {
                 buf[i++] = *str++;
-            } while (*str != '\0' && i < (N - 1));
+            } while (*str != '\0' && i < N - 1);
         };
         const auto copyFromFormat = [&buf, &fmt, &i, &fill, &width]() noexcept -> bool {
             do {
@@ -64,12 +64,12 @@ public:
                     return true;
                 }
                 buf[i++] = *fmt++;
-            } while (*fmt != '\0' && i < (N - 1));
+            } while (*fmt != '\0' && i < N - 1);
             return false;
         };
         (
             [&]<typename T>(T value) noexcept -> void {
-                if (*fmt != '\0' && i < (N - 1)) {
+                if (*fmt != '\0' && i < N - 1) {
                     const bool foundSpec = copyFromFormat();
                     if (foundSpec != false && *fmt != '\0') {
                         const char spec = *fmt++;
@@ -136,7 +136,7 @@ public:
                         } else if constexpr (std::is_same_v<T, float>) {
                             if (spec == 'a') {
                                 char num[24];
-                                toBinaryScientific(num, value);
+                                toHexadecimalFloat(num, value);
                                 copyFromString(num);
                             }
                         } else if constexpr (std::is_same_v<T, const char*> ||
@@ -155,7 +155,7 @@ public:
                 }
             }(args),
             ...);
-        while (*fmt != '\0' && i < (N - 1)) {
+        while (*fmt != '\0' && i < N - 1) {
             const bool foundSpec = copyFromFormat();
             if (foundSpec != false && *fmt != '\0') {
                 buf[i++] = *fmt++;
@@ -253,7 +253,7 @@ private:
         buf[len] = '\0';
     }
 
-    static void toBinaryScientific(char* buf, float number) noexcept {
+    static void toHexadecimalFloat(char* buf, float number) noexcept {
         const unsigned char* bytes = reinterpret_cast<unsigned char*>(&number);
         const uint32_t sign = 1ul - ((bytes[3] & 0x80ul) >> 7);
         const uint32_t expo = (bytes[2] & 0x80ul) >> 7 | (bytes[3] & 0x7ful) << 1;
@@ -289,7 +289,7 @@ private:
         };
         if (expo == 0) {
             if (frac == 0) {
-                copyFromString("-0x0p+0" + sign);
+                copyFromString("-0x0p0" + sign);
             } else {
                 copyFromString("-0x0." + sign);
                 copyBase16(frac);
@@ -312,7 +312,7 @@ private:
                 copyFromString("p-");
                 copyBase10(127 - expo);
             } else {
-                copyFromString("p+");
+                copyFromString("p");
                 copyBase10(expo - 127);
             }
         }
