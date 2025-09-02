@@ -183,8 +183,7 @@ private:
         std::size_t len = 0;
         do {
             buf[len++] = static_cast<char>(value & 1) + '0';
-            value >>= 1;
-        } while (value != 0);
+        } while ((value >>= 1) != 0);
         if (width > N - 1) {
             width = N - 1;
         }
@@ -205,8 +204,7 @@ private:
         const auto reduce = [&buf, &len](std::make_unsigned_t<T> num) -> void {
             do {
                 buf[len++] = static_cast<char>(num % 10) + '0';
-                num /= 10;
-            } while (num != 0);
+            } while ((num /= 10) != 0);
         };
         if constexpr (std::is_signed_v<T>) {
             const T mask = value >> (sizeof(value) * 8 - 1);
@@ -238,8 +236,7 @@ private:
         std::size_t len = 0;
         do {
             buf[len++] = kCharMap[value & 15];
-            value >>= 4;
-        } while (value != 0);
+        } while ((value >>= 4) != 0);
         if (width > N - 1) {
             width = N - 1;
         }
@@ -253,8 +250,10 @@ private:
         buf[len] = '\0';
     }
 
-    static void toHexadecimalFloat(char* buf, float number) noexcept {
-        const unsigned char* bytes = reinterpret_cast<unsigned char*>(&number);
+    template <std::size_t N>
+    static void toHexadecimalFloat(char (&buf)[N], float number) noexcept
+        requires (N > 16) {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
         const uint32_t sign = 1ul - ((bytes[3] & 0x80ul) >> 7);
         const uint32_t expo = (bytes[2] & 0x80ul) >> 7 | (bytes[3] & 0x7ful) << 1;
         const uint32_t frac = (bytes[0] & 0xfful) << 1 | (bytes[1] & 0xfful) << 9 | (bytes[2] & 0x7ful) << 17;
@@ -266,23 +265,23 @@ private:
         };
         const auto copyBase16 = [&buf, &len](uint32_t value) noexcept -> void {
             const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-            const std::size_t off = len;
             do {
                 buf[len++] = kCharMap[value & 15];
-                value >>= 4;
-            } while (value != 0);
-            reverse(&buf[off], len - off);
+            } while ((value >>= 4) != 0);
         };
         const auto copyBase10 = [&buf, &len](uint32_t value) noexcept -> void {
-            const std::size_t off = len;
             do {
                 buf[len++] = static_cast<char>(value % 10) + '0';
-                value /= 10;
-            } while (value != 0);
-            reverse(&buf[off], len - off);
+            } while ((value /= 10) != 0);
+        };
+        const auto appendZeros = [](uint32_t frac) noexcept -> uint32_t {
+            while ((frac & 15728640ul) == 0) {
+                frac <<= 4;
+            }
+            return frac;
         };
         const auto removeZeros = [](uint32_t frac) noexcept -> uint32_t {
-            while ((frac & 15) == 0) {
+            while ((frac & 15ul) == 0) {
                 frac >>= 4;
             }
             return frac;
@@ -292,7 +291,7 @@ private:
                 copyFromString("-0x0p0" + sign);
             } else {
                 copyFromString("-0x0." + sign);
-                copyBase16(frac);
+                copyBase16(appendZeros(frac));
                 copyFromString("p-126");
             }
         } else if (expo == 255) {
@@ -306,14 +305,20 @@ private:
                 copyFromString("-0x1" + sign);
             } else {
                 copyFromString("-0x1." + sign);
+                const std::size_t off = len;
                 copyBase16(removeZeros(frac));
+                reverse(&buf[off], len - off);
             }
             if (expo < 127) {
                 copyFromString("p-");
+                const std::size_t off = len;
                 copyBase10(127 - expo);
+                reverse(&buf[off], len - off);
             } else {
                 copyFromString("p");
+                const std::size_t off = len;
                 copyBase10(expo - 127);
+                reverse(&buf[off], len - off);
             }
         }
         buf[len] = '\0';
