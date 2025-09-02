@@ -19,6 +19,11 @@ class FormatBuffer final {
 private:
     char m_buffer[M];
 
+    static constexpr char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+    template <typename T, typename Enable = void>
+    struct FloatingPointHelper;
+
 public:
     FormatBuffer() noexcept {
         clear();
@@ -133,10 +138,11 @@ public:
                                 toBase16<uint32_t>(num, value, fill, width);
                                 copyFromString(num);
                             }
-                        } else if constexpr (std::is_same_v<T, float>) {
+                        } else if constexpr (std::is_same_v<T, double> ||
+                                             std::is_same_v<T, float>) {
                             if (spec == 'a') {
-                                char num[24];
-                                toHexadecimalFloat(num, value);
+                                char num[32];
+                                toHexadecimalFloatingPoint<T>(num, value);
                                 copyFromString(num);
                             }
                         } else if constexpr (std::is_same_v<T, const char*> ||
@@ -232,7 +238,6 @@ private:
     template <typename T, std::size_t N>
     static void toBase16(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept
         requires (N > 16 && std::is_integral_v<T> && std::is_unsigned_v<T>) {
-        const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
         std::size_t len = 0;
         do {
             buf[len++] = kCharMap[value & 15];
@@ -250,78 +255,136 @@ private:
         buf[len] = '\0';
     }
 
-    template <std::size_t N>
-    static void toHexadecimalFloat(char (&buf)[N], float number) noexcept
-        requires (N > 16) {
-        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
-        const uint32_t sign = 1ul - ((bytes[3] & 0x80ul) >> 7);
-        const uint32_t expo = (bytes[2] & 0x80ul) >> 7 | (bytes[3] & 0x7ful) << 1;
-        const uint32_t frac = (bytes[0] & 0xfful) << 1 | (bytes[1] & 0xfful) << 9 | (bytes[2] & 0x7ful) << 17;
+    template <typename T, std::size_t N>
+    static void toHexadecimalFloatingPoint(char (&buf)[N], T number) noexcept
+        requires (N > 24 && std::is_floating_point_v<T>) {
+        using Helper = FloatingPointHelper<T>;
+        const auto sign = Helper::sign(number);
+        const auto exponent = Helper::exponent(number);
+        const auto fraction = Helper::fraction(number);
         std::size_t len = 0;
         const auto copyFromString = [&buf, &len](const char* str) noexcept -> void {
             do {
                 buf[len++] = *str++;
             } while (*str != '\0');
         };
-        const auto copyBase16 = [&buf, &len](uint32_t value) noexcept -> void {
-            const char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+        const auto copyBase16 = [&buf, &len]<typename T>(T value) noexcept -> void {
             do {
                 buf[len++] = kCharMap[value & 15];
             } while ((value >>= 4) != 0);
         };
-        const auto copyBase10 = [&buf, &len](uint32_t value) noexcept -> void {
+        const auto copyBase10 = [&buf, &len]<typename T>(T value) noexcept -> void {
             do {
                 buf[len++] = static_cast<char>(value % 10) + '0';
             } while ((value /= 10) != 0);
         };
-        const auto appendZeros = [](uint32_t frac) noexcept -> uint32_t {
-            while ((frac & 15728640ul) == 0) {
-                frac <<= 4;
+        const auto appendZeros = []<typename T>(T fraction) noexcept -> T {
+            while ((fraction & Helper::kAppendZeroMask) == 0) {
+                fraction <<= 4;
             }
-            return frac;
+            return fraction;
         };
-        const auto removeZeros = [](uint32_t frac) noexcept -> uint32_t {
-            while ((frac & 15ul) == 0) {
-                frac >>= 4;
+        const auto removeZeros = []<typename T>(T fraction) noexcept -> T {
+            while ((fraction & 15) == 0) {
+                fraction >>= 4;
             }
-            return frac;
+            return fraction;
         };
-        if (expo == 0) {
-            if (frac == 0) {
+        if (exponent == 0) {
+            if (fraction == 0) {
                 copyFromString("-0x0p0" + sign);
             } else {
                 copyFromString("-0x0." + sign);
-                copyBase16(appendZeros(frac));
-                copyFromString("p-126");
+                copyBase16.template operator()(appendZeros.template operator()(fraction));
+                copyFromString("p-");
+                const std::size_t off = len;
+                copyBase10.template operator()(Helper::kExponentBias - 1);
+                reverse(&buf[off], len - off);
             }
-        } else if (expo == 255) {
-            if (frac == 0) {
+        } else if (exponent == Helper::kExponentMax) {
+            if (fraction == 0) {
                 copyFromString("-inf" + sign);
             } else {
                 copyFromString("-nan" + sign);
             }
         } else {
-            if (frac == 0) {
+            if (fraction == 0) {
                 copyFromString("-0x1" + sign);
             } else {
                 copyFromString("-0x1." + sign);
                 const std::size_t off = len;
-                copyBase16(removeZeros(frac));
+                copyBase16.template operator()(removeZeros.template operator()(fraction));
                 reverse(&buf[off], len - off);
             }
-            if (expo < 127) {
+            if (exponent < Helper::kExponentBias) {
                 copyFromString("p-");
                 const std::size_t off = len;
-                copyBase10(127 - expo);
+                copyBase10.template operator()(Helper::kExponentBias - exponent);
                 reverse(&buf[off], len - off);
             } else {
                 copyFromString("p");
                 const std::size_t off = len;
-                copyBase10(expo - 127);
+                copyBase10.template operator()(exponent - Helper::kExponentBias);
                 reverse(&buf[off], len - off);
             }
         }
         buf[len] = '\0';
+    }
+};
+
+template <std::size_t M>
+template <typename T>
+struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, float>>> {
+    static constexpr uint32_t kExponentMax = 255ul;
+    static constexpr uint32_t kExponentBias = 127ul;
+    static constexpr uint32_t kAppendZeroMask = 15728640ul;
+
+    static uint32_t sign(float number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return 1ul - ((bytes[3] & 0x80ul) >> 7);
+    }
+
+    static uint32_t exponent(float number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return (static_cast<uint32_t>(bytes[2]) & 0x80ul) >> 7 |
+               (static_cast<uint32_t>(bytes[3]) & 0x7ful) << 1;
+    }
+
+    static uint32_t fraction(float number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return static_cast<uint32_t>(bytes[0]) << 1 |
+               static_cast<uint32_t>(bytes[1]) << 9 |
+               (static_cast<uint32_t>(bytes[2]) & 0x7ful) << 17;
+    }
+};
+
+template <std::size_t M>
+template <typename T>
+struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, double>>> {
+    static constexpr uint32_t kExponentMax = 2047ul;
+    static constexpr uint32_t kExponentBias = 1023ul;
+    static constexpr uint64_t kAppendZeroMask = 4222124650659840ull;
+
+    static uint32_t sign(double number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return 1ul - ((bytes[7] & 0x80ul) >> 7);
+    }
+
+    static uint32_t exponent(double number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return (static_cast<uint32_t>(bytes[6]) & 0xf0ul) >> 4 |
+               (static_cast<uint32_t>(bytes[7]) & 0x7ful) << 4;
+    }
+
+    static uint64_t fraction(double number) noexcept {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&number);
+        return static_cast<uint64_t>(bytes[0]) |
+               static_cast<uint64_t>(bytes[1]) << 8 |
+               static_cast<uint64_t>(bytes[2]) << 16 |
+               static_cast<uint64_t>(bytes[3]) << 24 |
+               static_cast<uint64_t>(bytes[4]) << 32 |
+               static_cast<uint64_t>(bytes[5]) << 40 |
+               (static_cast<uint64_t>(bytes[6]) & 0x0full) << 48;
     }
 };
 

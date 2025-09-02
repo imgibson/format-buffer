@@ -14,7 +14,7 @@ A format specifier follows this prototype: '%[flags][width]specifier'
 | b         | Integer in Binary Format                                 |
 | c         | Single Character                                         |
 | s         | String of Characters (null-terminated)                   |
-| a         | Floating Point in Hexadecimal Binary Scientific Notation |
+| a         | Floating Point in Hexadecimal Floating Point Notation    |
 | %         | The '%' Character                                        |
 
 | Flags | Description                                               |
