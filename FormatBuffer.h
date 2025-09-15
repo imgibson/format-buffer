@@ -44,7 +44,7 @@ public:
         char fill = ' ';
         std::size_t i = 0;
         std::size_t width = 0;
-        const auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
+        [[maybe_unused]] const auto copyFromString = [&buf, &i](const char* str) noexcept -> void {
             do {
                 buf[i++] = *str++;
             } while (*str != '\0' && i < N - 1);
