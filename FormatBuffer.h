@@ -14,15 +14,19 @@
 #include <cstdint>
 #include <type_traits>
 
-template <std::size_t M>
+template <std::size_t N>
+    requires(N > 0)
 class FormatBuffer final {
 private:
-    char m_buffer[M];
+    char m_buffer[N];
 
     static constexpr char kCharMap[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
     template <typename T, typename Enable = void>
     struct FloatingPointHelper;
+
+	template <std::size_t M, typename... Types>
+	friend void format(char (&buf)[M], const char* fmt, Types... args) noexcept;
 
 public:
     FormatBuffer() noexcept {
@@ -43,9 +47,13 @@ public:
         m_buffer[0] = '\0';
     }
 
-    template <std::size_t N, typename... Types>
-    static void print(char (&buf)[N], const char* fmt, Types... args) noexcept
-        requires (N > 0) {
+    const char* c_str() const noexcept {
+        return m_buffer;
+    }
+
+private:
+    template <typename... Types>
+    static void print(char (&buf)[N], const char* fmt, Types... args) noexcept {
         char fill = ' ';
         std::size_t i = 0;
         std::size_t width = 0;
@@ -170,11 +178,6 @@ public:
         buf[i] = '\0';
     }
 
-    const char* c_str() const noexcept {
-        return m_buffer;
-    }
-
-private:
     static void reverse(char* buf, std::size_t length) noexcept {
         for (std::size_t i = 0, j = length - 1; i < j; ++i, --j) {
             const char tmp = buf[i];
@@ -183,15 +186,15 @@ private:
         }
     }
 
-    template <typename T, std::size_t N>
-    static void toBase2(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept
-        requires (N > 64 && std::is_integral_v<T> && std::is_unsigned_v<T>) {
+    template <typename T, std::size_t M>
+        requires(M > 64 && std::is_integral_v<T> && std::is_unsigned_v<T>)
+    static void toBase2(char (&buf)[M], T value, char fill = ' ', std::size_t width = 0) noexcept {
         std::size_t len = 0;
         do {
             buf[len++] = static_cast<char>(value & 1) + '0';
         } while ((value >>= 1) != 0);
-        if (width > N - 1) {
-            width = N - 1;
+        if (width > M - 1) {
+            width = M - 1;
         }
         if (width > len) {
             std::size_t count = width - len;
@@ -203,9 +206,9 @@ private:
         buf[len] = '\0';
     }
 
-    template <typename T, std::size_t N>
-    static void toBase10(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept
-        requires (N > 20 && std::is_integral_v<T>) {
+    template <typename T, std::size_t M>
+        requires(M > 20 && std::is_integral_v<T>)
+    static void toBase10(char (&buf)[M], T value, char fill = ' ', std::size_t width = 0) noexcept {
         std::size_t len = 0;
         const auto reduce = [&buf, &len](std::make_unsigned_t<T> num) -> void {
             do {
@@ -222,8 +225,8 @@ private:
         } else {
             static_assert(std::is_same_v<T, void>);
         }
-        if (width > N - 1) {
-            width = N - 1;
+        if (width > M - 1) {
+            width = M - 1;
         }
         if (width > len) {
             std::size_t count = width - len;
@@ -235,15 +238,15 @@ private:
         buf[len] = '\0';
     }
 
-    template <typename T, std::size_t N>
-    static void toBase16(char (&buf)[N], T value, char fill = ' ', std::size_t width = 0) noexcept
-        requires (N > 16 && std::is_integral_v<T> && std::is_unsigned_v<T>) {
+    template <typename T, std::size_t M>
+        requires(M > 16 && std::is_integral_v<T> && std::is_unsigned_v<T>)
+    static void toBase16(char (&buf)[M], T value, char fill = ' ', std::size_t width = 0) noexcept {
         std::size_t len = 0;
         do {
             buf[len++] = kCharMap[value & 15];
         } while ((value >>= 4) != 0);
-        if (width > N - 1) {
-            width = N - 1;
+        if (width > M - 1) {
+            width = M - 1;
         }
         if (width > len) {
             std::size_t count = width - len;
@@ -255,9 +258,9 @@ private:
         buf[len] = '\0';
     }
 
-    template <typename T, std::size_t N>
-    static void toHexadecimalFloatingPoint(char (&buf)[N], T number) noexcept
-        requires (N > 24 && std::is_floating_point_v<T>) {
+    template <typename T, std::size_t M>
+        requires(M > 24 && std::is_floating_point_v<T>)
+    static void toHexadecimalFloatingPoint(char (&buf)[M], T number) noexcept {
         using Helper = FloatingPointHelper<T>;
         const auto sign = Helper::sign(number);
         const auto exponent = Helper::exponent(number);
@@ -332,9 +335,10 @@ private:
     }
 };
 
-template <std::size_t M>
+template <std::size_t N>
+    requires(N > 0)
 template <typename T>
-struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, float>>> {
+struct FormatBuffer<N>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, float>>> {
     static constexpr uint32_t kExponentMax = 255ul;
     static constexpr uint32_t kExponentBias = 127ul;
     static constexpr uint32_t kAppendZeroMask = 15728640ul;
@@ -358,9 +362,10 @@ struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T
     }
 };
 
-template <std::size_t M>
+template <std::size_t N>
+    requires(N > 0)
 template <typename T>
-struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, double>>> {
+struct FormatBuffer<N>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T, double>>> {
     static constexpr uint32_t kExponentMax = 2047ul;
     static constexpr uint32_t kExponentBias = 1023ul;
     static constexpr uint64_t kAppendZeroMask = 4222124650659840ull;
@@ -388,7 +393,7 @@ struct FormatBuffer<M>::FloatingPointHelper<T, std::enable_if_t<std::is_same_v<T
     }
 };
 
-template <std::size_t N, typename... Types>
-void format(char (&buf)[N], const char* fmt, Types... args) noexcept {
-    FormatBuffer<N>::print(buf, fmt, args...);
+template <std::size_t M, typename... Types>
+void format(char (&buf)[M], const char* fmt, Types... args) noexcept {
+    FormatBuffer<M>::print(buf, fmt, args...);
 }
