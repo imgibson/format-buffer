@@ -1,12 +1,26 @@
 /*!
- * Format Buffer (the "software") provided by Anders Lind ("author") license agreements.
- * - This software is free for both personal and commercial use. You may install and use it on your computers free of charge.
- * - You may NOT modify, de-compile, disassemble or reverse engineer the software.
- * - You may use, copy, sell, redistribute or give the software to third part freely as long as the software is not modified.
- * - The software remains property of the authors also in case of dissemination to third parties.
- * - The software's name and logo are not to be used to identify other products or services.
- * - THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * - The authors reserve the rights to change the license agreements in future versions of the software
+ * Format Buffer - Lightweight format string utility for C++
+ *
+ * Copyright (c) 2026 Anders Lind
+ * All rights reserved.
+ *
+ * Required Notice: Copyright (c) 2026 Anders Lind (https://truehumandesign.se).
+ *
+ * This software is available under dual licensing:
+ *
+ * 1. Noncommercial License:
+ *    PolyForm Noncommercial License 1.0.0.
+ *    Free for all uses permitted by that license, including
+ *    modification and redistribution under its terms.
+ *
+ * 2. Commercial License:
+ *    Commercial use is available under a separate license
+ *    granted by the copyright holder.
+ *    Contact: https://truehumandesign.se/
+ *
+ * License: https://polyformproject.org/licenses/noncommercial/1.0.0
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
  */
 
 #pragma once

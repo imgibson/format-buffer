@@ -1,6 +1,6 @@
 # Format Buffer
 
-Format Buffer is a very lightweight header only library to write a format string to a buffer. It only supports the most basic format specifiers and floating point formats are omitted on purpose with the exception of hexadecimal binary scientific notation to keep things simple. 
+Format Buffer is a lightweight header only library to format a string to a buffer. It only supports the most basic format specifiers and floating point formats are omitted on purpose with the exception of hexadecimal binary scientific notation to keep things simple. 
 
 ## Usage
 
@@ -39,3 +39,7 @@ char buf[1024];
 FormatBuffer::print(buf, "%a", 3.14f);
 std::cout << buf.c_str() << std::endl;
 ```
+
+## License
+
+See the license terms included in `FormatBuffer.h`.
