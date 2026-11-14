@@ -42,4 +42,4 @@ std::cout << buf.c_str() << std::endl;
 
 ## License
 
-See the license terms included in `FormatBuffer.h`.
+See the license terms included in `format_buffer.h`.
